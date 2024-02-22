@@ -9,7 +9,6 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
-
 use std::collections::HashMap;
 use opentelemetry::trace::TraceError;
 use opentelemetry::{ global, KeyValue, Context};
@@ -20,7 +19,6 @@ use opentelemetry_semantic_conventions::trace;
 
 //Used in propagations
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::TracerProvider};
-
 
 // Utility function to extract the context from the incoming request headers
 fn extract_context_from_request(req: &Request<Body>) -> Context {
@@ -34,7 +32,6 @@ fn extract_context_from_request(req: &Request<Body>) -> Context {
     })
 }
 
-
 // Separate async function for the handle endpoint
 #[instrument]
 async fn handle_rolldice(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
@@ -46,7 +43,6 @@ async fn handle_rolldice(_req: Request<Body>) -> Result<Response<Body>, Infallib
 async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     // Extract the context from the incoming request headers
     let parent_cx = extract_context_from_request(&req);
-
 
     let mut response =  {
         let handle_request_span = tracing::span!(Level::INFO, "handle_request");
@@ -109,7 +105,7 @@ fn init_tracer()  {
             // Use the tracing subscriber `Registry`, or any other subscriber
             // that impls `LookupSpan`
             let subscriber = Registry::default().with(telemetry);
-            tracing::subscriber::set_global_default(subscriber);
+            let _ = tracing::subscriber::set_global_default(subscriber);
         }
         Err(e) => {}
     }
