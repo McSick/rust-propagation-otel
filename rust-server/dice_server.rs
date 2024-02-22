@@ -4,21 +4,18 @@ use rand::Rng;
 use std::{convert::Infallible, net::SocketAddr,env};
 use tracing::Instrument;
 use tracing::{instrument, Level};
-use tracing::{error, Span};
+use tracing::Span;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use std::collections::HashMap;
-use opentelemetry::trace::TraceError;
 use opentelemetry::{ global, KeyValue, Context};
 use opentelemetry_sdk::{trace as sdktrace, resource::Resource};
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry::trace::{Status, Tracer, FutureExt, TraceContextExt};
-use opentelemetry_semantic_conventions::trace;
 
 //Used in propagations
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::TracerProvider};
+use opentelemetry_sdk::propagation::TraceContextPropagator;
 
 // Utility function to extract the context from the incoming request headers
 fn extract_context_from_request(req: &Request<Body>) -> Context {
@@ -44,7 +41,7 @@ async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     // Extract the context from the incoming request headers
     let parent_cx = extract_context_from_request(&req);
 
-    let mut response =  {
+    let response =  {
         let handle_request_span = tracing::span!(Level::INFO, "handle_request", http.path=%req.uri().path(), http.method=req.method().as_str());
         handle_request_span.set_parent(parent_cx.clone());
 
@@ -105,7 +102,7 @@ fn init_tracer()  {
             let subscriber = Registry::default().with(telemetry);
             let _ = tracing::subscriber::set_global_default(subscriber);
         }
-        Err(e) => {}
+        Err(e) => { println!("Error setting up tracer: {:?}", e); }
     }
 }
 
