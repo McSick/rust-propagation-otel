@@ -33,7 +33,7 @@ fn extract_context_from_request(req: &Request<Body>) -> Context {
 }
 
 // Separate async function for the handle endpoint
-#[instrument]
+#[instrument(fields(app.dice_roll))]
 async fn handle_rolldice(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let random_number = rand::thread_rng().gen_range(1..7);
     Span::current().record("app.dice_roll", &random_number);
@@ -45,9 +45,7 @@ async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let parent_cx = extract_context_from_request(&req);
 
     let mut response =  {
-        let handle_request_span = tracing::span!(Level::INFO, "handle_request");
-        handle_request_span.record("http.target", req.uri().path());
-        handle_request_span.record("http.method", req.method().as_str());
+        let handle_request_span = tracing::span!(Level::INFO, "handle_request", http.path=%req.uri().path(), http.method=req.method().as_str());
         handle_request_span.set_parent(parent_cx.clone());
 
         match (req.method(), req.uri().path()) {
