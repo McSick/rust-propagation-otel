@@ -2,13 +2,20 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server, Method, StatusCode};
 use rand::Rng;
 use std::{convert::Infallible, net::SocketAddr,env};
+use tracing::Instrument;
+use tracing::{instrument, Level};
+use tracing::{error, Span};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Registry;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
+
 
 use std::collections::HashMap;
 use opentelemetry::trace::TraceError;
 use opentelemetry::{ global, KeyValue, Context};
 use opentelemetry_sdk::{trace as sdktrace, resource::Resource};
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry::trace::{Status, Tracer, Span, FutureExt, TraceContextExt};
+use opentelemetry::trace::{Status, Tracer, FutureExt, TraceContextExt};
 use opentelemetry_semantic_conventions::trace;
 
 //Used in propagations
@@ -29,15 +36,10 @@ fn extract_context_from_request(req: &Request<Body>) -> Context {
 
 
 // Separate async function for the handle endpoint
+#[instrument]
 async fn handle_rolldice(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
-    let tracer = global::tracer("dice_server");
-    let mut span = tracer
-        .span_builder("rolldice")
-        .with_kind(SpanKind::Internal)
-        .start(&tracer);
-    span.add_event("We did it", vec![]);
     let random_number = rand::thread_rng().gen_range(1..7);
-    span.set_attribute(KeyValue::new("dice_roll", random_number));
+    Span::current().record("app.dice_roll", &random_number);
     let res = Response::new(Body::from(random_number.to_string()));
     Ok(res)
 }
@@ -47,17 +49,22 @@ async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
 
 
     let mut response =  {
-        let tracer = global::tracer("dice_server");
+        let handle_request_span = tracing::span!(Level::INFO, "handle_request");
+        handle_request_span.record("http.target", req.uri().path());
+        handle_request_span.record("http.method", req.method().as_str());
+        handle_request_span.set_parent(parent_cx.clone());
 
-        let mut span = tracer.span_builder(format!("{} {}", req.method(), req.uri().path())).with_kind(SpanKind::Server).start_with_context(&tracer, &parent_cx);
-        let cx = Context::default().with_span(span);
         match (req.method(), req.uri().path()) {
             (&Method::GET, "/rolldice") => {
-                handle_rolldice(req).with_context(cx).await
+                //This allows us to match the parent span to the underlying function
+                //See other examples at  https://docs.rs/tracing/latest/tracing/struct.Span.html#method.enter
+                async move {
+                    handle_rolldice(req).await
+                }.instrument(handle_request_span).await
+
             }
             _ => {
-                cx.span()
-                .set_attribute(KeyValue::new(trace::HTTP_RESPONSE_STATUS_CODE, 404));
+                
                 let mut not_found = Response::default();
                 *not_found.status_mut() = StatusCode::NOT_FOUND;
                 Ok(not_found)
@@ -68,14 +75,14 @@ async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     response
 }
 
-fn init_tracer() -> Result<sdktrace::Tracer, TraceError> {
+fn init_tracer()  {
     global::set_text_map_propagator(TraceContextPropagator::new());
     let honeycomb_api_key = match env::var("HONEYCOMB_API_KEY" ) {
         Ok(val) => val,
         Err(_) => "".to_string(),
     };
 
-    opentelemetry_otlp::new_pipeline()
+    let tracer = opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_exporter(
         opentelemetry_otlp::new_exporter()
@@ -91,14 +98,28 @@ fn init_tracer() -> Result<sdktrace::Tracer, TraceError> {
             "dice_server",
         )])),
     )
-    .install_batch(opentelemetry_sdk::runtime::Tokio)
+    .install_batch(opentelemetry_sdk::runtime::Tokio);
+
+    // setup tracing crate subscriber
+    match tracer {
+        Ok(tracer) => {
+            // Create a tracing layer with the configured tracer
+            let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
+
+            // Use the tracing subscriber `Registry`, or any other subscriber
+            // that impls `LookupSpan`
+            let subscriber = Registry::default().with(telemetry);
+            tracing::subscriber::set_global_default(subscriber);
+        }
+        Err(e) => {}
+    }
 }
 
 
 #[tokio::main]
 async fn main() {
     // Setup tracing and export to Honeycomb
-    let _ = init_tracer();
+    init_tracer();
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
 
