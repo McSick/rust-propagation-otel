@@ -8,13 +8,10 @@ use tracing::Span;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::Registry;
 use tracing_opentelemetry::OpenTelemetrySpanExt;
-
 use std::collections::HashMap;
 use opentelemetry::{ global, KeyValue, Context};
 use opentelemetry_sdk::{trace as sdktrace, resource::Resource};
 use opentelemetry_otlp::WithExportConfig;
-
-//Used in propagations
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 
 // Utility function to extract the context from the incoming request headers
@@ -33,7 +30,7 @@ fn extract_context_from_request(req: &Request<Body>) -> Context {
 #[instrument(fields(app.dice_roll))]
 async fn handle_rolldice(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let random_number = rand::thread_rng().gen_range(1..7);
-    Span::current().record("app.dice_roll", &random_number);
+    Span::current().record("app.dice_roll", random_number);
     let res = Response::new(Body::from(random_number.to_string()));
     Ok(res)
 }
@@ -52,17 +49,14 @@ async fn handle(req: Request<Body>) -> Result<Response<Body>, Infallible> {
                 async move {
                     handle_rolldice(req).await
                 }.instrument(handle_request_span).await
-
             }
             _ => {
-                
                 let mut not_found = Response::default();
                 *not_found.status_mut() = StatusCode::NOT_FOUND;
                 Ok(not_found)
             }
         }
     };
-   
     response
 }
 
@@ -72,7 +66,6 @@ fn init_tracer()  {
         Ok(val) => val,
         Err(_) => "".to_string(),
     };
-
     let tracer = opentelemetry_otlp::new_pipeline()
     .tracing()
     .with_exporter(
@@ -90,7 +83,6 @@ fn init_tracer()  {
         )])),
     )
     .install_batch(opentelemetry_sdk::runtime::Tokio);
-
     // setup tracing crate subscriber
     match tracer {
         Ok(tracer) => {
@@ -105,7 +97,6 @@ fn init_tracer()  {
         Err(e) => { println!("Error setting up tracer: {:?}", e); }
     }
 }
-
 
 #[tokio::main]
 async fn main() {

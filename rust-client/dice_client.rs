@@ -1,6 +1,3 @@
-
-
-
 use std::{env};
 use tracing::Instrument;
 use tracing::{instrument, Level};
@@ -14,11 +11,8 @@ use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use opentelemetry::{ global, KeyValue};
 use opentelemetry_sdk::{trace as sdktrace, resource::Resource};
 use opentelemetry_otlp::WithExportConfig;
-
-//Used in propagations
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use std::io::{self};
-use reqwest;
 
 fn headermap_from_hashmap<'a, I, S>(headers: I) -> HeaderMap
 where
@@ -33,7 +27,6 @@ where
         .map(|(k, v)| (k.unwrap(), v.unwrap()))
         .collect() 
 }
-
 
 fn init_tracer()  {
     global::set_text_map_propagator(TraceContextPropagator::new());
@@ -65,7 +58,6 @@ fn init_tracer()  {
         Ok(tracer) => {
             // Create a tracing layer with the configured tracer
             let telemetry = tracing_opentelemetry::layer().with_tracer(tracer);
-
             // Use the tracing subscriber `Registry`, or any other subscriber
             // that impls `LookupSpan`
             let subscriber = Registry::default().with(telemetry);
@@ -74,7 +66,7 @@ fn init_tracer()  {
         Err(e) => { println!("Error setting up tracer: {:?}", e); }
     }
 }
-#[instrument(parent=Span::current())]
+#[instrument]
 async fn get_random_number_from_server() -> Result<u32, reqwest::Error> {
     let url = "http://localhost:8080/rolldice";
 
@@ -91,7 +83,6 @@ async fn get_random_number_from_server() -> Result<u32, reqwest::Error> {
 #[instrument]
 fn get_user_guess() -> Result<u32, &'static str> {
     // Parse the input as an integer
-
     let mut input = String::new();
     println!("Enter a number between 1 and 6");
     io::stdin().read_line(&mut input).expect("Failed to read input");
@@ -117,7 +108,6 @@ fn get_should_continue() -> Result<bool, &'static str> {
         "y" => Ok(true),
         "n" => Ok(false),
         _ => {
-            //println!("Invalid Character, Please enter y or n.");
             Err("Invalid Character")
         }
     };
@@ -132,25 +122,18 @@ async fn main() {
     println!("If you guess correctly, you win!");
     println!("If you guess incorrectly, you lose!");
     println!("Good luck!");
-
-    println!("");
+    println!();
     // a loop to keep the program running
     loop {
         // Call the function to get the user input
        
         let game_span = tracing::span!(Level::INFO, "game_span");
-
         let input = game_span.in_scope(get_user_guess);
-
-
         match input {
             Ok(number) => {
-
                 let backend_roll = async move {
-                    let backend_roll = get_random_number_from_server().await;
-                    backend_roll
+                    get_random_number_from_server().await
                 }.instrument(game_span.clone()).await;
-                
                 match backend_roll {
                     Ok(backend_roll) => {
                         println!("The server rolled a {}", backend_roll);
@@ -164,7 +147,6 @@ async fn main() {
                         println!("Error getting random number from server: {:?}", e);
                     }
                 }
-
             }
             Err(_) => {
                 continue;
@@ -182,6 +164,4 @@ async fn main() {
             }
         }
     }
-
 }
-
