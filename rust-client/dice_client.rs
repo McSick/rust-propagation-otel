@@ -1,7 +1,7 @@
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Client, Request, Response, Server, Method, StatusCode};
-use rand::Rng;
-use std::{convert::Infallible, net::SocketAddr,env};
+
+
+
+use std::{env};
 use tracing::Instrument;
 use tracing::{instrument, Level};
 use tracing::Span;
@@ -11,13 +11,13 @@ use tracing_opentelemetry::OpenTelemetrySpanExt;
 use std::str::FromStr;
 use std::collections::HashMap;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
-use opentelemetry::{ global, KeyValue, Context};
+use opentelemetry::{ global, KeyValue};
 use opentelemetry_sdk::{trace as sdktrace, resource::Resource};
 use opentelemetry_otlp::WithExportConfig;
 
 //Used in propagations
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-use std::io::{self, Read};
+use std::io::{self};
 use reqwest;
 
 fn headermap_from_hashmap<'a, I, S>(headers: I) -> HeaderMap
