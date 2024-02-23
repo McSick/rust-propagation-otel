@@ -20,3 +20,5 @@ $ cargo run --bin dice_client
 
 The client is a simple program that asks you to guess a dice roll. The server will respond with the actual roll and whether you guessed correctly.
 
+Example Trace
+![Trace View](example_trace.png?raw=true "Trace View")
