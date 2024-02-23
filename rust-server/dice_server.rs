@@ -13,7 +13,7 @@ use opentelemetry::{ global, KeyValue, Context};
 use opentelemetry_sdk::{trace as sdktrace, resource::Resource};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::propagation::TraceContextPropagator;
-
+use std::{thread, time};
 // Utility function to extract the context from the incoming request headers
 fn extract_context_from_request(req: &Request<Body>) -> Context {
     // convert the req headers to a hashmap
@@ -31,6 +31,8 @@ fn extract_context_from_request(req: &Request<Body>) -> Context {
 async fn handle_rolldice(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
     let random_number = rand::thread_rng().gen_range(1..7);
     Span::current().record("app.dice_roll", random_number);
+    let fake_wait_ms = time::Duration::from_millis(rand::thread_rng().gen_range(500..1500));
+    thread::sleep(fake_wait_ms);
     let res = Response::new(Body::from(random_number.to_string()));
     Ok(res)
 }
